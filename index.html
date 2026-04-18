@@ -252,15 +252,26 @@
             btnElement.classList.remove('tab-inactive'); btnElement.classList.add('tab-active');
 
             const editor = document.getElementById('liveEditor');
-            if (format === 'original') {
+            
+            if (format === 'original' || format === 'iast') {
                 editor.value = originalContent;
             } else if (format === 'devanagari') {
-                editor.value = Sanscript.t(originalContent, 'iast', 'devanagari');
-            } else if (format === 'iast') {
-                editor.value = originalContent;
+                // SMART TRANSLITERATION: Detect the header and ignore it
+                let prefix = "";
+                let sanskritPart = originalContent;
+                
+                // Brian's files always use "Text:" before the actual manuscript starts
+                const splitMarker = "Text:";
+                if (originalContent.includes(splitMarker)) {
+                    const parts = originalContent.split(splitMarker);
+                    prefix = parts[0] + splitMarker; // Keep the English header exactly as is
+                    sanskritPart = parts.slice(1).join(splitMarker); // The actual Sanskrit to convert
+                }
+                
+                // Combine the unchanged English header with the converted Devanagari text
+                editor.value = prefix + Sanscript.t(sanskritPart, 'iast', 'devanagari');
             }
         }
-
         function downloadAsTXT() {
             const textToSave = document.getElementById('liveEditor').value;
             const blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
