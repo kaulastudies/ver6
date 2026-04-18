@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaula Archive - Digital Scriptorium</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@indic-transliteration/sanscript@1.2.8/sanscript.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --saffron: #ff9933; --stone: #1c1917; }
+        .dark-theme { --bg: #1c1917; --text: #f5f5f4; --card: #292524; }
+        
+        body { font-family: 'Inter', sans-serif; background-color: #fcfaf8; color: var(--stone); transition: all 0.3s ease; }
+        .serif { font-family: 'Playfair Display', serif; }
+        .hidden { display: none; }
+        
+        .clickable { cursor: pointer !important; }
+        .active-row { border-left: 5px solid var(--saffron) !important; background-color: rgba(255, 153, 51, 0.05) !important; }
+        .tab-active { background-color: var(--stone); color: white; }
+        .tab-inactive { background-color: #f5f5f4; color: #78716c; }
+        
+        #previewPane { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar-btn { @apply w-full text-left px-4 py-2 rounded-xl text-sm transition-all clickable hover:bg-white/5; }
+        .filter-box { @apply w-full bg-stone-900 border-none rounded-lg p-3 text-[10px] text-stone-400 outline-none mb-2 clickable; }
+        
+        /* Read-Only State Styling */
+        .read-only-pane { background-color: transparent !important; border-color: transparent !important; box-shadow: none !important; cursor: text; }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #e7e5e4; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col">
+
+    <div id="authPage" class="fixed inset-0 z-[100] flex items-center justify-center bg-stone-100">
+        <div class="bg-white p-12 rounded-[50px] shadow-2xl w-[480px] border border-stone-200 text-center">
+            <h1 class="serif text-4xl text-stone-900 mb-2">Kaula Archive</h1>
+            <p class="text-[10px] text-stone-400 uppercase tracking-[0.3em] font-bold mb-10">Institutional Access</p>
+            
+            <div id="loginForm" class="space-y-4 mb-6 transition-all">
+                <input type="email" id="inEmail" placeholder="Email Address" class="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#ff9933] text-sm">
+                <input type="password" id="inPass" placeholder="Password" class="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#ff9933] text-sm">
+                <button onclick="handleSignIn()" class="w-full py-4 rounded-2xl font-bold text-white shadow-lg bg-[#ff9933] hover:bg-[#e67e22] clickable">Secure Login</button>
+                <p class="text-[10px] text-stone-500 mt-4">New visitor? <span onclick="toggleAuth()" class="text-[#ff9933] font-bold clickable uppercase tracking-widest ml-1">Create Account</span></p>
+            </div>
+
+            <div id="signupForm" class="hidden space-y-4 mb-6 transition-all">
+                <input type="text" id="upName" placeholder="Full Name" class="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#ff9933] text-sm">
+                <input type="email" id="upEmail" placeholder="Email Address" class="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#ff9933] text-sm">
+                <input type="password" id="upPass" placeholder="Create Password" class="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#ff9933] text-sm">
+                <button onclick="handleSignUp()" class="w-full py-4 rounded-2xl font-bold text-white shadow-lg bg-stone-900 hover:bg-black clickable">Register for Access</button>
+                <p class="text-[10px] text-stone-500 mt-4">Already have access? <span onclick="toggleAuth()" class="text-[#ff9933] font-bold clickable uppercase tracking-widest ml-1">Sign In</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="hidden flex h-full">
+        <aside class="w-72 bg-stone-950 text-stone-400 flex flex-col border-r border-stone-900 shrink-0">
+            <div class="p-8 border-b border-stone-900">
+                <h2 class="text-white font-bold text-2xl italic">Archive <span class="text-[#ff9933] text-xs">OS</span></h2>
+            </div>
+            
+            <div class="p-6 overflow-y-auto flex-1">
+                <nav class="space-y-1 mb-8">
+                    <p class="px-4 text-[9px] uppercase tracking-widest font-black text-stone-700 mb-2">Library</p>
+                    <button onclick="switchView('catalog')" class="sidebar-btn">📖 Catalog</button>
+                    <button id="navUpload" onclick="switchView('upload')" class="hidden sidebar-btn text-blue-400 font-bold">📤 Upload E-Texts</button>
+                    <button id="navAdmin" onclick="switchView('admin')" class="hidden sidebar-btn text-[#ff9933] font-bold">🛡️ Governance</button>
+                </nav>
+
+                <div class="space-y-4">
+                    <p class="px-4 text-[9px] uppercase tracking-widest font-black text-stone-700 mb-2">Shortlist Filters</p>
+                    <input type="text" id="sideShortlist" oninput="fetchData()" placeholder="Filter by Title..." class="filter-box clickable">
+                    <input type="text" id="fAuthor" oninput="fetchData()" placeholder="Filter by Author..." class="filter-box clickable">
+                </div>
+            </div>
+
+            <div class="p-6 bg-black border-t border-stone-900">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-white font-bold" id="uiName">--</p>
+                        <p class="text-[9px] uppercase text-stone-600 font-black tracking-widest" id="uiRole">--</p>
+                    </div>
+                    <button onclick="handleLogout()" class="text-[10px] font-black text-[#ff9933] hover:text-white uppercase clickable">Exit Portal</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0 bg-[#fcfaf8] overflow-hidden">
+            <header class="h-14 border-b border-stone-200 flex items-center justify-end px-10 space-x-4 bg-white/50">
+                <button onclick="document.body.classList.toggle('dark-theme')" class="text-[9px] font-black uppercase tracking-widest text-stone-400 clickable">Toggle Dark Mode</button>
+            </header>
+
+            <section id="v-catalog" class="flex-1 flex flex-col p-10 overflow-hidden">
+                <div class="max-w-4xl mx-auto w-full flex flex-col h-full">
+                    <h2 class="serif text-5xl text-stone-900 mb-8">Research Repository</h2>
+                    <div class="relative mb-10">
+                        <span class="absolute left-6 top-5 text-stone-300 text-xl">🔍</span>
+                        <input type="text" id="mSearch" oninput="fetchData()" placeholder="Central Search by Volume, Chapter, or Title..." 
+                            class="w-full p-6 pl-16 rounded-[40px] shadow-2xl border-none outline-none focus:ring-4 focus:ring-orange-500/10 text-lg transition-all">
+                    </div>
+                    <div id="catalogList" class="flex-1 overflow-y-auto space-y-3 pr-4 pb-10"></div>
+                </div>
+            </section>
+
+            <section id="v-upload" class="hidden flex-1 p-16 overflow-y-auto">
+                <div class="max-w-2xl mx-auto bg-white p-12 rounded-[40px] shadow-sm border border-stone-200">
+                    <h2 class="serif text-3xl mb-8 text-stone-900">Upload E-Text (.txt)</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <input type="text" id="upTitle" placeholder="Title (IAST/English)" class="p-4 bg-stone-50 border rounded-2xl outline-none text-sm w-full">
+                        <input type="text" id="upSubject" placeholder="Tradition / Subject" class="p-4 bg-stone-50 border rounded-2xl outline-none text-sm w-full">
+                    </div>
+                    <textarea id="upContent" placeholder="Paste the .txt content directly here..." class="w-full p-4 bg-stone-50 border rounded-2xl outline-none text-sm mb-6 h-48"></textarea>
+                    <button onclick="submitEtext()" class="w-full bg-[#ff9933] text-white py-4 rounded-2xl font-bold hover:bg-[#e67e22] shadow-lg clickable">Submit to Database</button>
+                </div>
+            </section>
+
+            <section id="v-admin" class="hidden flex-1 p-16 overflow-y-auto">
+                <h2 class="serif text-4xl mb-12">Institutional Governance</h2>
+                <div class="bg-white rounded-[32px] border border-stone-200 overflow-hidden shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-stone-50 text-[10px] uppercase font-black text-stone-400 border-b border-stone-100">
+                            <tr><th class="p-8">Identity</th><th class="p-8">Role</th><th class="p-8 text-right">Action</th></tr>
+                        </thead>
+                        <tbody id="adminTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <aside id="previewPane" class="w-0 bg-white border-l border-stone-200 flex flex-col overflow-hidden">
+            <div id="previewContent" class="p-10 invisible opacity-0 transition-opacity flex flex-col h-full"></div>
+        </aside>
+    </div>
+
+    <script>
+        const SB_URL = "https://gcgxcnbimqpfrowesfms.supabase.co";
+        const SB_KEY = "sb_publishable_XObSGljjo-VILprIHw_Bxw_FKM7uUOU";
+        const kClient = supabase.createClient(SB_URL, SB_KEY);
+        let userRole = 'public';
+        let originalContent = '';
+        let currentManuscriptTitle = '';
+
+        function toggleAuth() {
+            document.getElementById('loginForm').classList.toggle('hidden');
+            document.getElementById('signupForm').classList.toggle('hidden');
+        }
+
+        async function handleSignIn() {
+            const email = document.getElementById('inEmail').value;
+            const password = document.getElementById('inPass').value;
+            const { data, error } = await kClient.auth.signInWithPassword({ email, password });
+            if (error) alert("Access Denied: " + error.message); else location.reload();
+        }
+
+        async function handleSignUp() {
+            const email = document.getElementById('upEmail').value;
+            const password = document.getElementById('upPass').value;
+            const name = document.getElementById('upName').value;
+            const { data, error } = await kClient.auth.signUp({ email, password, options: { data: { full_name: name } } });
+            if (error) alert("Registration Failed: " + error.message);
+            else { alert("Registration Successful! Please Log In."); toggleAuth(); }
+        }
+
+        async function init() {
+            const { data: { session } } = await kClient.auth.getSession();
+            if (session) {
+                document.getElementById('authPage').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                
+                const { data: profile } = await kClient.from('profiles').select('*').eq('id', session.user.id).single();
+                userRole = profile?.role || 'public';
+                document.getElementById('uiName').innerText = profile?.full_name || session.user.email.split('@')[0];
+                document.getElementById('uiRole').innerText = userRole;
+                
+                // Only Scholars and Admins can upload texts
+                if (['admin', 'scholar'].includes(userRole)) document.getElementById('navUpload').classList.remove('hidden');
+                if (userRole === 'admin') { document.getElementById('navAdmin').classList.remove('hidden'); loadGovernanceData(); }
+                fetchData();
+            }
+        }
+
+        async function fetchData() {
+            const search = document.getElementById('mSearch').value;
+            const shortlist = document.getElementById('sideShortlist').value;
+            const author = document.getElementById('fAuthor').value;
+            
+            let query = kClient.from('manuscripts').select('*');
+            if (search) query = query.ilike('search_blob', `%${search}%`);
+            if (shortlist) query = query.ilike('title_iast', `%${shortlist}%`);
+            if (author) query = query.ilike('author', `%${author}%`);
+
+            const { data } = await query.limit(20);
+            document.getElementById('catalogList').innerHTML = data.map(m => `
+                <div onclick="openPreview(${JSON.stringify(m).replace(/"/g, '&quot;')}, this)" class="bg-white p-6 rounded-[24px] border border-stone-100 flex justify-between items-center hover:border-orange-200 clickable shadow-sm transition-all group">
+                    <div>
+                        <h4 class="font-bold text-stone-800 group-hover:text-[#ff9933]">${m.title_iast}</h4>
+                        <p class="text-[9px] text-stone-400 font-bold uppercase tracking-widest">${m.subject || 'E-Text'}</p>
+                    </div>
+                    ${m.last_revision_date ? `<p class="text-[8px] font-black text-[#ff9933] uppercase">Revised: ${new Date(m.last_revision_date).toLocaleDateString()}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function openPreview(m, el) {
+            document.querySelectorAll('#catalogList > div').forEach(d => d.classList.remove('active-row'));
+            el.classList.add('active-row');
+            
+            originalContent = m.content || '';
+            currentManuscriptTitle = m.title_iast;
+            
+            const pane = document.getElementById('previewPane');
+            const content = document.getElementById('previewContent');
+            pane.style.width = "650px";
+            content.classList.remove('invisible', 'opacity-0');
+
+            // STRICT READ-ONLY CHECK: Only specific internal team roles can edit.
+            const canEdit = ['admin', 'typist', 'proofreader'].includes(userRole);
+
+            content.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <button onclick="closePane()" class="text-[10px] font-black uppercase text-stone-400 hover:text-black clickable">✕ Close</button>
+                    
+                    <div class="flex space-x-1 bg-stone-100 p-1 rounded-xl border border-stone-200">
+                        <button onclick="changeViewFormat('original', this)" class="format-tab tab-active px-4 py-1 rounded-lg text-[9px] font-black uppercase clickable">Original</button>
+                        <button onclick="changeViewFormat('iast', this)" class="format-tab tab-inactive px-4 py-1 rounded-lg text-[9px] font-black uppercase clickable">IAST</button>
+                        <button onclick="changeViewFormat('devanagari', this)" class="format-tab tab-inactive px-4 py-1 rounded-lg text-[9px] font-black uppercase clickable">Devanagari</button>
+                    </div>
+                </div>
+
+                <h2 class="serif text-4xl mb-4">${m.title_iast}</h2>
+                
+                <div class="flex-1 flex flex-col h-full">
+                    <textarea id="liveEditor" ${!canEdit ? 'readonly' : ''} 
+                        class="flex-1 w-full p-8 ${canEdit ? 'bg-stone-50 border-stone-100 focus:ring-4 focus:ring-orange-500/10 shadow-inner' : 'read-only-pane'} border rounded-[40px] font-serif text-xl leading-relaxed outline-none resize-none">${originalContent}</textarea>
+                </div>
+                
+                ${canEdit ? `<button onclick="saveChanges(${m.id})" class="mt-6 py-4 rounded-2xl text-white font-bold text-xs uppercase bg-[#ff9933] clickable shadow-lg">Save Edits to Database</button>` : ''}
+                
+                <button onclick="downloadAsTXT()" class="w-full mt-3 bg-white border border-stone-300 text-stone-800 py-4 rounded-2xl text-[10px] font-black uppercase clickable hover:bg-stone-50 transition-all">
+                    ⬇ Download as .TXT File
+                </button>
+            `;
+        }
+
+        function changeViewFormat(format, btnElement) {
+            document.querySelectorAll('.format-tab').forEach(b => {
+                b.classList.remove('tab-active'); b.classList.add('tab-inactive');
+            });
+            btnElement.classList.remove('tab-inactive'); btnElement.classList.add('tab-active');
+
+            const editor = document.getElementById('liveEditor');
+            if (format === 'original') editor.value = originalContent;
+            else if (format === 'devanagari') editor.value = Sanscript.t(originalContent, 'hk', 'devanagari');
+            else if (format === 'iast') editor.value = Sanscript.t(originalContent, 'hk', 'iast');
+        }
+
+        function downloadAsTXT() {
+            const textToSave = document.getElementById('liveEditor').value;
+            const blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `${currentManuscriptTitle.replace(/\s+/g, '_')}.txt`;
+            link.click(); URL.revokeObjectURL(link.href);
+        }
+
+        async function submitEtext() {
+            const title = document.getElementById('upTitle').value;
+            const subject = document.getElementById('upSubject').value;
+            const content = document.getElementById('upContent').value;
+            if (!title) return alert("Title is required.");
+
+            const { error } = await kClient.from('manuscripts').insert([{
+                title_iast: title, subject: subject, content: content, search_blob: `${title} ${subject}`, last_revision_date: new Date().toISOString()
+            }]);
+
+            if (error) alert("Error saving: " + error.message);
+            else { alert("E-Text successfully added to database!"); fetchData(); switchView('catalog'); }
+        }
+
+        async function saveChanges(id) {
+            const val = document.getElementById('liveEditor').value;
+            const { error } = await kClient.from('manuscripts').update({ content: val, last_revision_date: new Date().toISOString() }).eq('id', id);
+            if (!error) { alert("Database Updated."); originalContent = val; fetchData(); }
+        }
+
+        async function loadGovernanceData() {
+            const { data } = await kClient.from('profiles').select('*');
+            document.getElementById('adminTableBody').innerHTML = data.map(p => `
+                <tr class="border-t border-stone-50 hover:bg-stone-50/50 transition-all">
+                    <td class="px-8 py-6 font-bold text-stone-800">${p.full_name || p.id.split('-')[0]}</td>
+                    <td class="px-8 py-6 text-[10px] font-black uppercase text-stone-400 tracking-widest">${p.role}</td>
+                    <td class="px-8 py-6 text-right">
+                        <select onchange="updateUserRole('${p.id}', this.value)" class="bg-stone-100 rounded-xl text-[10px] font-bold p-2 outline-none clickable">
+                            <option ${p.role==='public'?'selected':''}>public</option>
+                            <option ${p.role==='scholar'?'selected':''}>scholar</option>
+                            <option ${p.role==='typist'?'selected':''}>typist</option>
+                            <option ${p.role==='proofreader'?'selected':''}>proofreader</option>
+                            <option ${p.role==='admin'?'selected':''}>admin</option>
+                        </select>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function updateUserRole(uid, role) { await kClient.from('profiles').update({ role }).eq('id', uid); alert("Privileges updated."); }
+        function closePane() { document.getElementById('previewPane').style.width = "0px"; }
+        function switchView(v) { ['catalog', 'admin', 'upload'].forEach(s => { const el = document.getElementById('v-'+s); if(el) el.classList.toggle('hidden', s !== v); }); }
+        async function handleLogout() { await kClient.auth.signOut(); location.reload(); }
+        window.onload = init;
+    </script>
+</body>
+</html>
