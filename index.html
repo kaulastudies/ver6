@@ -245,7 +245,8 @@
             `;
         }
 
-        function changeViewFormat(format, btnElement) {
+     function changeViewFormat(format, btnElement) {
+            // Update Tab UI
             document.querySelectorAll('.format-tab').forEach(b => {
                 b.classList.remove('tab-active'); b.classList.add('tab-inactive');
             });
@@ -256,22 +257,24 @@
             if (format === 'original' || format === 'iast') {
                 editor.value = originalContent;
             } else if (format === 'devanagari') {
-                // SMART TRANSLITERATION: Detect the header and ignore it
+                // Find where the actual Sanskrit starts
+                const marker = "Text:";
                 let prefix = "";
                 let sanskritPart = originalContent;
                 
-                // Brian's files always use "Text:" before the actual manuscript starts
-                const splitMarker = "Text:";
-                if (originalContent.includes(splitMarker)) {
-                    const parts = originalContent.split(splitMarker);
-                    prefix = parts[0] + splitMarker; // Keep the English header exactly as is
-                    sanskritPart = parts.slice(1).join(splitMarker); // The actual Sanskrit to convert
+                const markerIndex = originalContent.indexOf(marker);
+                
+                if (markerIndex !== -1) {
+                    // Split the text EXACTLY at the word "Text:"
+                    const splitPoint = markerIndex + marker.length;
+                    prefix = originalContent.substring(0, splitPoint); // English header (Keep as is)
+                    sanskritPart = originalContent.substring(splitPoint); // The Sanskrit verses
                 }
                 
-                // Combine the unchanged English header with the converted Devanagari text
+                // Translate ONLY the Sanskrit part, and stitch the English header back on top
                 editor.value = prefix + Sanscript.t(sanskritPart, 'iast', 'devanagari');
             }
-        }
+        }       
         function downloadAsTXT() {
             const textToSave = document.getElementById('liveEditor').value;
             const blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
