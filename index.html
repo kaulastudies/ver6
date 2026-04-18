@@ -252,9 +252,13 @@
             btnElement.classList.remove('tab-inactive'); btnElement.classList.add('tab-active');
 
             const editor = document.getElementById('liveEditor');
-            if (format === 'original') editor.value = originalContent;
-            else if (format === 'devanagari') editor.value = Sanscript.t(originalContent, 'hk', 'devanagari');
-            else if (format === 'iast') editor.value = Sanscript.t(originalContent, 'hk', 'iast');
+            if (format === 'original') {
+                editor.value = originalContent;
+            } else if (format === 'devanagari') {
+                editor.value = Sanscript.t(originalContent, 'iast', 'devanagari');
+            } else if (format === 'iast') {
+                editor.value = originalContent;
+            }
         }
 
         function downloadAsTXT() {
@@ -276,8 +280,16 @@
                 title_iast: title, subject: subject, content: content, search_blob: `${title} ${subject}`, last_revision_date: new Date().toISOString()
             }]);
 
-            if (error) alert("Error saving: " + error.message);
-            else { alert("E-Text successfully added to database!"); fetchData(); switchView('catalog'); }
+            if (error) {
+                alert("Error saving: " + error.message);
+            } else { 
+                alert("E-Text successfully added to database!"); 
+                document.getElementById('upTitle').value = ''; 
+                document.getElementById('upSubject').value = ''; 
+                document.getElementById('upContent').value = '';
+                fetchData(); 
+                switchView('catalog'); 
+            }
         }
 
         async function saveChanges(id) {
