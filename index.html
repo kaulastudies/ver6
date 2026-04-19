@@ -340,7 +340,7 @@
         }
 
         // REGISTRATION LOGIC RESTORED
-        async function handleSignUp() {
+       async function handleSignUp() {
             const email = document.getElementById('upEmail').value;
             const password = document.getElementById('upPass').value;
             const name = document.getElementById('upName').value;
@@ -356,11 +356,11 @@
             if (error) {
                 alert("Registration Failed: " + error.message);
             } else { 
-                alert("Registration Successful! Please Log In."); 
+                // EMERGENCY LAUNCH MESSAGE
+                alert("Registration Successful! You can now sign in immediately."); 
                 toggleAuth(); 
             }
         }
-
         async function handleLogout() { 
             await kClient.auth.signOut(); 
             location.reload(); 
